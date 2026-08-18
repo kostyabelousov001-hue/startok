@@ -1,10 +1,10 @@
 #import "StarTok.h"
 
-// Hook for Message and Comment Input Controllers
+// Safe Hook for Message and Comment Input Controllers
 %hook AWEIMMessageInputViewController
 
 - (void)sendMessageWithText:(NSString *)text {
-    if (!text || text.length == 0) {
+    if (!text || ![text isKindOfClass:[NSString class]] || text.length == 0) {
         %orig(text);
         return;
     }
@@ -33,13 +33,13 @@
                                                                         preferredStyle:UIAlertControllerStyleAlert];
             [helpAlert addAction:[UIAlertAction actionWithTitle:@"Понятно" style:UIAlertActionStyleCancel handler:nil]];
             [self presentViewController:helpAlert animated:YES completion:nil];
-            return; // Suppress sending raw command as chat text
+            return;
         }
         
         // !spam <text> <count>
         if ([command isEqualToString:@"!spam"] && components.count >= 3) {
             NSInteger count = [[components lastObject] integerValue];
-            if (count > 50) count = 50; // Safety cap
+            if (count > 30) count = 30; // Safety limit
             if (count <= 0) count = 5;
             
             NSRange textRange = NSMakeRange(1, components.count - 2);
@@ -47,7 +47,7 @@
             NSString *spamText = [words componentsJoinedByString:@" "];
             
             for (NSInteger i = 0; i < count; i++) {
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(i * 0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(i * 0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                     %orig(spamText);
                 });
             }
@@ -83,29 +83,12 @@
     %orig(text);
 }
 
-// Ghost Typing hook: Block sending typing indicator to other user if enabled
+// Ghost Typing hook
 - (void)sendUserIsTypingNotification {
     if ([[StarTokManager sharedManager] boolForKey:kStarTokGhostTyping defaultVal:NO]) {
-        return; // Suppress typing packet
+        return;
     }
     %orig;
-}
-
-%end
-
-// =========================================================================
-// 2. STREAK SAVER HOOK
-// =========================================================================
-%hook AWEIMStreakManager
-
-- (void)checkStreaksExpiringSoon {
-    %orig;
-    if ([[StarTokManager sharedManager] boolForKey:kStarTokStreakSaver defaultVal:YES]) {
-        // Automatically send subtle heart/emoji ping to prevent streak loss
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            NSLog(@"[StarTok] StreakSaver: Active streak checked and preserved!");
-        });
-    }
 }
 
 %end

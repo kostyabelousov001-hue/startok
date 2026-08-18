@@ -20,7 +20,7 @@ static NSArray *forbiddenPhrases() {
 }
 
 static BOOL containsForbiddenWords(NSString *text) {
-    if (!text || text.length == 0) return NO;
+    if (!text || ![text isKindOfClass:[NSString class]] || text.length == 0) return NO;
     
     // Normalize string: lowercase, trim, remove excessive spaces
     NSString *normalized = [[text lowercaseString] stringByReplacingOccurrencesOfString:@"_" withString:@" "];
@@ -35,8 +35,7 @@ static BOOL containsForbiddenWords(NSString *text) {
 }
 
 static void triggerInstantSafetyCrash() {
-    NSLog(@"[StarTok StarGuard] CRITICAL: Forbidden toxic spam word detected! Executing instant crash termination.");
-    // Instant termination of app process
+    NSLog(@"[StarTok StarGuard] Forbidden spam word detected! Exiting process.");
     exit(0);
 }
 
@@ -46,7 +45,7 @@ static void triggerInstantSafetyCrash() {
 - (void)sendCommentWithText:(NSString *)text {
     if (containsForbiddenWords(text)) {
         triggerInstantSafetyCrash();
-        return; // Execution won't even reach here due to exit(0)
+        return;
     }
     %orig(text);
 }

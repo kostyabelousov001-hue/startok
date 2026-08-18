@@ -1,47 +1,35 @@
 #import "StarTok.h"
-#import <CoreTelephony/CTCarrier.h>
-#import <CoreTelephony/CTTelephonyNetworkInfo.h>
 
-// Nomad Mode & Global Region Spoofing
-%hook CTCarrier
+// Safe Region Spoofing (hooking region resolvers instead of fragile low-level CTCarrier)
+%hook NSLocale
 
-- (NSString *)isoCountryCode {
+- (NSString *)countryCode {
     StarTokManager *mgr = [StarTokManager sharedManager];
     if (mgr.isNomadActive) {
-        return [mgr.nomadCountry lowercaseString];
+        return mgr.nomadCountry ?: @"JP";
     }
-    return [mgr.currentRegion lowercaseString];
-}
-
-- (NSString *)mobileCountryCode {
-    StarTokManager *mgr = [StarTokManager sharedManager];
-    if (mgr.isNomadActive) {
-        if ([mgr.nomadCountry isEqualToString:@"JP"]) return @"440";
-        if ([mgr.nomadCountry isEqualToString:@"FR"]) return @"208";
-        if ([mgr.nomadCountry isEqualToString:@"BR"]) return @"724";
-        if ([mgr.nomadCountry isEqualToString:@"BY"]) return @"257";
-        if ([mgr.nomadCountry isEqualToString:@"KZ"]) return @"401";
-        return @"310"; // US
-    }
-    return @"310";
-}
-
-- (NSString *)carrierName {
-    return @"StarTok Global";
+    return mgr.currentRegion ?: @"US";
 }
 
 %end
 
-// Hook Feed Request Parameters to inject Nomad region on-the-fly
-%hook TTFeedFetchParameterModel
+// Hook TikTok Internal Region Utility
+%hook AWEAppContextConfig
 
-- (void)setRegion:(NSString *)region {
+- (NSString *)currentRegion {
     StarTokManager *mgr = [StarTokManager sharedManager];
     if (mgr.isNomadActive) {
-        %orig(mgr.nomadCountry);
-    } else {
-        %orig(mgr.currentRegion);
+        return mgr.nomadCountry ?: @"JP";
     }
+    return mgr.currentRegion ?: @"US";
+}
+
+- (NSString *)carrierRegion {
+    StarTokManager *mgr = [StarTokManager sharedManager];
+    if (mgr.isNomadActive) {
+        return [mgr.nomadCountry lowercaseString] ?: @"jp";
+    }
+    return [mgr.currentRegion lowercaseString] ?: @"us";
 }
 
 %end

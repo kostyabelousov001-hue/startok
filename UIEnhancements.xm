@@ -4,7 +4,7 @@
 %hook AWEStoryViewerModel
 - (BOOL)reportViewEvent {
     if ([[StarTokManager sharedManager] boolForKey:kStarTokGhostMode defaultVal:NO]) {
-        return NO; // Block view reporting
+        return NO;
     }
     return %orig;
 }
@@ -14,26 +14,22 @@
 %hook AWEFeedCellViewController
 
 - (void)configWithModel:(id)model {
-    // Check if item is Live stream or Sponsored Ad
-    if ([[StarTokManager sharedManager] boolForKey:kStarTokAntiLive defaultVal:NO]) {
-        @try {
-            BOOL isLive = [[model valueForKey:@"isLive"] boolValue];
-            if (isLive) {
-                [self.view setHidden:YES];
-            }
-        } @catch (NSException *e) {}
-    }
-    
-    if ([[StarTokManager sharedManager] boolForKey:kStarTokAntiAds defaultVal:YES]) {
-        @try {
-            BOOL isAd = [[model valueForKey:@"isAd"] boolValue] || [[model valueForKey:@"isCommerce"] boolValue];
-            if (isAd) {
-                [self.view setHidden:YES];
-            }
-        } @catch (NSException *e) {}
-    }
-    
     %orig(model);
+    if (!model) return;
+    
+    @try {
+        if ([[StarTokManager sharedManager] boolForKey:kStarTokAntiLive defaultVal:NO]) {
+            if ([model respondsToSelector:@selector(isLive)] && [[model valueForKey:@"isLive"] boolValue]) {
+                [self.view setHidden:YES];
+            }
+        }
+        if ([[StarTokManager sharedManager] boolForKey:kStarTokAntiAds defaultVal:YES]) {
+            if (([model respondsToSelector:@selector(isAd)] && [[model valueForKey:@"isAd"] boolValue]) ||
+                ([model respondsToSelector:@selector(isCommerce)] && [[model valueForKey:@"isCommerce"] boolValue])) {
+                [self.view setHidden:YES];
+            }
+        }
+    } @catch (NSException *e) {}
 }
 
 %end
@@ -50,29 +46,16 @@
 
 %end
 
-// 4. OLED Pure Black Theme & Accent Colors
-%hook UIView
-
-- (void)didMoveToWindow {
-    %orig;
-    if ([[StarTokManager sharedManager] boolForKey:kStarTokPureBlack defaultVal:NO]) {
-        if ([self.backgroundColor isEqual:[UIColor colorWithWhite:0.12 alpha:1.0]] ||
-            [self.backgroundColor isEqual:[UIColor colorWithRed:0.09 green:0.09 blue:0.09 alpha:1.0]]) {
-            self.backgroundColor = [UIColor blackColor];
-        }
-    }
-}
-
-%end
-
-// 5. StarSpeed Hold (Hold screen to speed up playback to 2.5x)
+// 4. StarSpeed Hold (Hold screen to speed up playback to 2.5x)
 %hook AWEPlayVideoViewController
 
 - (void)viewDidLoad {
     %orig;
-    UILongPressGestureRecognizer *speedHold = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleStarTokSpeedHold:)];
-    speedHold.minimumPressDuration = 0.3;
-    [self.view addGestureRecognizer:speedHold];
+    @try {
+        UILongPressGestureRecognizer *speedHold = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleStarTokSpeedHold:)];
+        speedHold.minimumPressDuration = 0.3;
+        [self.view addGestureRecognizer:speedHold];
+    } @catch (NSException *e) {}
 }
 
 %new
@@ -80,11 +63,15 @@
     if (gesture.state == UIGestureRecognizerStateBegan) {
         [[StarTokManager sharedManager] triggerHapticFeedback:UIImpactFeedbackStyleLight];
         @try {
-            [[self valueForKey:@"player"] setValue:@(2.5) forKey:@"playbackRate"];
+            if ([self respondsToSelector:@selector(player)]) {
+                [[self valueForKey:@"player"] setValue:@(2.5) forKey:@"playbackRate"];
+            }
         } @catch (NSException *e) {}
     } else if (gesture.state == UIGestureRecognizerStateEnded || gesture.state == UIGestureRecognizerStateCancelled) {
         @try {
-            [[self valueForKey:@"player"] setValue:@(1.0) forKey:@"playbackRate"];
+            if ([self respondsToSelector:@selector(player)]) {
+                [[self valueForKey:@"player"] setValue:@(1.0) forKey:@"playbackRate"];
+            }
         } @catch (NSException *e) {}
     }
 }
