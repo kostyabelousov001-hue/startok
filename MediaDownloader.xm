@@ -1,7 +1,6 @@
 #import "StarTok.h"
-#import <Photos/Photos.h>
 
-// No Watermark & Media Downloader Helper
+// No Watermark & Media Downloader Helper using standard UIKit & Photos Album selector
 @interface StarTokDownloader : NSObject
 + (void)downloadVideoFromURL:(NSURL *)url completion:(void(^)(BOOL success))completion;
 + (void)saveImageToPhotos:(UIImage *)image completion:(void(^)(BOOL success))completion;
@@ -15,21 +14,15 @@
             NSString *tempPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"startok_download.mp4"];
             [data writeToFile:tempPath atomically:YES];
             
-            [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
-                if (status == PHAuthorizationStatusAuthorized) {
-                    [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-                        [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:[NSURL fileURLWithPath:tempPath]];
-                    } completionHandler:^(BOOL success, NSError * _Nullable saveError) {
-                        [[NSFileManager defaultManager] removeItemAtPath:tempPath error:nil];
-                        dispatch_async(dispatch_get_main_queue(), ^{
-                            if (success) {
-                                [[StarTokManager sharedManager] triggerHapticFeedback:UIImpactFeedbackStyleMedium];
-                            }
-                            if (completion) completion(success);
-                        });
-                    }];
-                }
-            }];
+            if (UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(tempPath)) {
+                UISaveVideoAtPathToSavedPhotosAlbum(tempPath, nil, nil, nil);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [[StarTokManager sharedManager] triggerHapticFeedback:UIImpactFeedbackStyleMedium];
+                    if (completion) completion(YES);
+                });
+            } else {
+                if (completion) completion(NO);
+            }
         } else {
             if (completion) completion(NO);
         }
@@ -38,20 +31,15 @@
 }
 
 + (void)saveImageToPhotos:(UIImage *)image completion:(void(^)(BOOL success))completion {
-    [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
-        if (status == PHAuthorizationStatusAuthorized) {
-            [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-                [PHAssetChangeRequest creationRequestForAssetFromImage:image];
-            } completionHandler:^(BOOL success, NSError * _Nullable error) {
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    if (success) {
-                        [[StarTokManager sharedManager] triggerHapticFeedback:UIImpactFeedbackStyleMedium];
-                    }
-                    if (completion) completion(success);
-                });
-            }];
-        }
-    }];
+    if (image) {
+        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[StarTokManager sharedManager] triggerHapticFeedback:UIImpactFeedbackStyleMedium];
+            if (completion) completion(YES);
+        });
+    } else {
+        if (completion) completion(NO);
+    }
 }
 
 @end
