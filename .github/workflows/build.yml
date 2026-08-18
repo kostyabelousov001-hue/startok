@@ -6,7 +6,7 @@ on:
       ipa_url:
         description: 'Direct URL to decrypted TikTok .ipa'
         required: true
-        default: 'https://example.com/TikTok_decrypted.ipa'
+        default: 'https://github.com/swaggyP36000/TrollStore-IPAs/releases/download/08-31-2024/TikTokDark-36.2.0.ipa'
       target_region:
         description: 'Default Region Code (US, BY, KZ, DE, JP)'
         required: true
@@ -26,12 +26,12 @@ jobs:
       - name: Setup Theos Environment & iOS SDKs
         run: |
           echo "Installing system dependencies..."
-          brew install ldid dpkg
+          brew install ldid dpkg optool
           
           export THEOS=/tmp/theos
           git clone --recursive https://github.com/theos/theos.git $THEOS
           
-          echo "Installing patched iOS 16.5 SDK..."
+          echo "Installing iOS SDK..."
           curl -LO https://github.com/theos/sdks/archive/master.zip
           unzip -q master.zip
           mv sdks-master/*.sdk $THEOS/sdks/ || true
@@ -53,19 +53,13 @@ jobs:
           export THEOS=/tmp/theos
           make clean
           make package FINALPACKAGE=1
-          echo "Compilation complete! Checking generated dylib:"
-          find .theos -name "*.dylib"
-
-      - name: Setup Injection Engine (Pyzule)
-        run: |
-          git clone https://github.com/ManticoreOps/pyzule.git /tmp/pyzule
-          pip3 install -r /tmp/pyzule/requirements.txt || true
-          chmod +x /tmp/pyzule/pyzule
+          echo "Checking compiled dylib:"
+          find .theos -name "StarTok.dylib"
 
       - name: Download Target TikTok IPA
         run: |
           IPA_URL="${{ github.event.inputs.ipa_url }}"
-          echo "Downloading decrypted TikTok IPA from $IPA_URL..."
+          echo "Downloading TikTok IPA from $IPA_URL..."
           curl -L "$IPA_URL" -o ./base.ipa
           
           if [ ! -f ./base.ipa ] || [ $(wc -c < ./base.ipa) -lt 1000000 ]; then
@@ -73,21 +67,56 @@ jobs:
             exit 1
           fi
 
-      - name: Inject StarTok Tweak & Dependencies
+      - name: Inject StarTok Tweak via Optool & CydiaSubstrate
         run: |
-          DYLIB_PATH=$(find .theos -name "StarTok.dylib" | head -n 1)
-          if [ -z "$DYLIB_PATH" ]; then
-            DYLIB_PATH=$(find .theos -name "*.dylib" | head -n 1)
+          echo "Extracting IPA..."
+          unzip -q ./base.ipa -d ./extracted
+          
+          APP_DIR=$(find ./extracted/Payload -name "*.app" | head -n 1)
+          APP_NAME=$(basename "$APP_DIR")
+          APP_BINARY="${APP_DIR}/${APP_NAME%.app}"
+          
+          echo "App directory: $APP_DIR"
+          echo "App binary: $APP_BINARY"
+          
+          DYLIB_SRC=$(find .theos -name "StarTok.dylib" | head -n 1)
+          echo "Found compiled dylib at: $DYLIB_SRC"
+          
+          # Create Frameworks directory if not exists
+          mkdir -p "${APP_DIR}/Frameworks"
+          
+          # Copy StarTok.dylib
+          cp "$DYLIB_SRC" "${APP_DIR}/Frameworks/StarTok.dylib"
+          
+          # Copy CydiaSubstrate if present in Theos
+          SUBSTRATE="/tmp/theos/vendor/lib/CydiaSubstrate.framework/CydiaSubstrate"
+          if [ -f "$SUBSTRATE" ]; then
+            cp "$SUBSTRATE" "${APP_DIR}/Frameworks/CydiaSubstrate.dylib"
+            install_name_tool -id "@rpath/CydiaSubstrate.dylib" "${APP_DIR}/Frameworks/CydiaSubstrate.dylib" || true
+            install_name_tool -change "/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate" "@rpath/CydiaSubstrate.dylib" "${APP_DIR}/Frameworks/StarTok.dylib" || true
+            optool install -c load -p "@rpath/CydiaSubstrate.dylib" -t "$APP_BINARY" || true
           fi
           
-          echo "Injecting $DYLIB_PATH into base.ipa..."
-          python3 /tmp/pyzule/pyzule -i ./base.ipa -f "$DYLIB_PATH" -c -m 14.0 -o ./StarTok_Ultimate_${{ github.event.inputs.target_region }}.ipa
+          # Fix dylib id and inject into Mach-O binary
+          install_name_tool -id "@rpath/StarTok.dylib" "${APP_DIR}/Frameworks/StarTok.dylib" || true
+          optool install -c load -p "@rpath/StarTok.dylib" -t "$APP_BINARY"
+          
+          # Codesign with ldid
+          ldid -S "${APP_DIR}/Frameworks/StarTok.dylib" || true
+          ldid -S "$APP_BINARY" || true
+          
+          # Repackage IPA
+          cd ./extracted
+          zip -qr ../StarTok_Ultimate_${{ github.event.inputs.target_region }}.ipa Payload
+          cd ..
+          
+          echo "Successfully created StarTok IPA!"
 
       - name: Verify IPA Integrity
         run: |
           echo "Verifying generated StarTok IPA..."
           ls -lh ./StarTok_Ultimate_*.ipa
-          unzip -l ./StarTok_Ultimate_*.ipa | grep -i "StarTok.dylib" || true
+          unzip -l ./StarTok_Ultimate_*.ipa | grep -i "StarTok.dylib"
 
       - name: Upload StarTok IPA as Artifact
         uses: actions/upload-artifact@v4
