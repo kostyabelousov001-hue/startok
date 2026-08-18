@@ -32,6 +32,56 @@
 #define kStarTokAutoTranslate @"st_auto_translate"
 #define kStarTokCustomBackend @"st_custom_backend"
 
+// Forward class declarations with superclasses for Theos Clang
+@interface AWECommentAuthorView : UIView
+- (void)configWithComment:(id)comment;
+@end
+
+@interface AWEIMMessageInputViewController : UIViewController
+- (void)sendMessageWithText:(NSString *)text;
+- (void)sendUserIsTypingNotification;
+- (void)didTapSendButtonWithContent:(NSString *)content;
+@end
+
+@interface AWEIMStreakManager : NSObject
+- (void)checkStreaksExpiringSoon;
+@end
+
+@interface AWECommentInputViewController : UIViewController
+- (void)sendCommentWithText:(NSString *)text;
+@end
+
+@interface TTFeedFetchParameterModel : NSObject
+- (void)setRegion:(NSString *)region;
+@end
+
+@interface AWEAwemeModel : NSObject
+- (BOOL)isWatermarkEnabled;
+- (BOOL)preventDownload;
+@end
+
+@interface AWEAvatarImageView : UIImageView
+@end
+
+@interface AWEStoryViewerModel : NSObject
+- (BOOL)reportViewEvent;
+@end
+
+@interface AWEFeedCellViewController : UIViewController
+- (void)configWithModel:(id)model;
+@end
+
+@interface AWEFeedInteractionViewController : UIViewController
+- (void)onLikeActionTriggered:(id)sender;
+@end
+
+@interface AWEPlayVideoViewController : UIViewController
+@end
+
+@interface AWEUserProfileViewController : UIViewController
+- (void)openStarTokSettings;
+@end
+
 // User Roles for Badges
 typedef NS_ENUM(NSInteger, StarTokRole) {
     StarTokRoleNone = 0,
