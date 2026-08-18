@@ -8,9 +8,9 @@
 // =========================================================================
 // StarTok Global Configuration & Constants
 // =========================================================================
-#define STARTOK_VERSION @"2.0.0"
+#define STARTOK_VERSION @"2.1.0"
 #define STARTOK_PREFS_PATH @"/var/mobile/Library/Preferences/com.startok.prefs.plist"
-#define DEFAULT_BACKEND_URL @"https://api.startok.app"
+#define DEFAULT_BACKEND_URL @"https://api.krnlcamel.space"
 
 // Keys for NSUserDefaults / Preferences
 #define kStarTokEnabled @"st_enabled"
@@ -80,6 +80,16 @@
 
 @interface AWEUserProfileViewController : UIViewController
 - (void)openStarTokSettings;
+@end
+
+@interface TTNetworkManager : NSObject
+- (NSDictionary *)commonParams;
+@end
+
+@interface AWEAppContextConfig : NSObject
+- (NSString *)currentRegion;
+- (NSString *)carrierRegion;
+- (NSString *)userRegion;
 @end
 
 // User Roles for Badges
