@@ -1,0 +1,97 @@
+name: Build StarTok Ultimate IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: 'Direct URL to decrypted TikTok .ipa'
+        required: true
+        default: 'https://example.com/TikTok_decrypted.ipa'
+      target_region:
+        description: 'Default Region Code (US, BY, KZ, DE, JP)'
+        required: true
+        default: 'US'
+      backend_url:
+        description: 'StarTok Backend URL'
+        required: false
+        default: 'https://api.startok.app'
+
+jobs:
+  build-and-inject:
+    runs-on: macos-14
+    steps:
+      - name: Checkout StarTok Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Theos Environment & iOS SDKs
+        run: |
+          echo "Installing system dependencies..."
+          brew install ldid dpkg
+          
+          export THEOS=/tmp/theos
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+          
+          echo "Installing patched iOS 16.5 SDK..."
+          curl -LO https://github.com/theos/sdks/archive/master.zip
+          unzip -q master.zip
+          mv sdks-master/*.sdk $THEOS/sdks/ || true
+          rm -rf master.zip sdks-master
+
+      - name: Configure Backend & Region in Source Code
+        run: |
+          BACKEND="${{ github.event.inputs.backend_url }}"
+          REGION="${{ github.event.inputs.target_region }}"
+          
+          echo "Setting custom backend: $BACKEND"
+          sed -i '' "s|https://api.startok.app|$BACKEND|g" StarTok.h
+          
+          echo "Setting default region: $REGION"
+          sed -i '' "s|@\"US\"|@\"$REGION\"|g" StarTokManager.m
+
+      - name: Compile StarTok Tweak (Theos)
+        run: |
+          export THEOS=/tmp/theos
+          make clean
+          make package FINALPACKAGE=1
+          echo "Compilation complete! Checking generated dylib:"
+          find .theos -name "*.dylib"
+
+      - name: Setup Injection Engine (Pyzule)
+        run: |
+          git clone https://github.com/ManticoreOps/pyzule.git /tmp/pyzule
+          pip3 install -r /tmp/pyzule/requirements.txt || true
+          chmod +x /tmp/pyzule/pyzule
+
+      - name: Download Target TikTok IPA
+        run: |
+          IPA_URL="${{ github.event.inputs.ipa_url }}"
+          echo "Downloading decrypted TikTok IPA from $IPA_URL..."
+          curl -L "$IPA_URL" -o ./base.ipa
+          
+          if [ ! -f ./base.ipa ] || [ $(wc -c < ./base.ipa) -lt 1000000 ]; then
+            echo "Error: Failed to download valid .ipa file!"
+            exit 1
+          fi
+
+      - name: Inject StarTok Tweak & Dependencies
+        run: |
+          DYLIB_PATH=$(find .theos -name "StarTok.dylib" | head -n 1)
+          if [ -z "$DYLIB_PATH" ]; then
+            DYLIB_PATH=$(find .theos -name "*.dylib" | head -n 1)
+          fi
+          
+          echo "Injecting $DYLIB_PATH into base.ipa..."
+          python3 /tmp/pyzule/pyzule -i ./base.ipa -f "$DYLIB_PATH" -c -m 14.0 -o ./StarTok_Ultimate_${{ github.event.inputs.target_region }}.ipa
+
+      - name: Verify IPA Integrity
+        run: |
+          echo "Verifying generated StarTok IPA..."
+          ls -lh ./StarTok_Ultimate_*.ipa
+          unzip -l ./StarTok_Ultimate_*.ipa | grep -i "StarTok.dylib" || true
+
+      - name: Upload StarTok IPA as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarTok_Ultimate_${{ github.event.inputs.target_region }}
+          path: ./StarTok_Ultimate_*.ipa
+          retention-days: 14

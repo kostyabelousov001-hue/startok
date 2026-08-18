@@ -1,0 +1,9 @@
+Package: com.startok.custommod
+Name: StarTok
+Depends: mobilesubstrate, preferenceloader
+Version: 2.0.0
+Architecture: iphoneos-arm64
+Description: StarTok Ultimate - The supreme TikTok mod for iOS with custom badges, StarBump, chat commands, Nomad mode, no watermark, and advanced controls.
+Maintainer: StarTok Team
+Author: StarTok Team
+Section: Tweaks
