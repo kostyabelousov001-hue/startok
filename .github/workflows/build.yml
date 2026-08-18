@@ -26,7 +26,15 @@ jobs:
       - name: Setup Theos Environment & iOS SDKs
         run: |
           echo "Installing system dependencies..."
-          brew install ldid dpkg optool
+          brew install ldid dpkg
+          
+          # Install insert_dylib
+          echo "Building insert_dylib..."
+          git clone https://github.com/tyilo/insert_dylib.git /tmp/insert_dylib
+          cd /tmp/insert_dylib
+          xcodebuild -configuration Release
+          sudo cp build/Release/insert_dylib /usr/local/bin/ || sudo cp build/Release/insert_dylib /opt/homebrew/bin/ || true
+          cd $GITHUB_WORKSPACE
           
           export THEOS=/tmp/theos
           git clone --recursive https://github.com/theos/theos.git $THEOS
@@ -67,7 +75,7 @@ jobs:
             exit 1
           fi
 
-      - name: Inject StarTok Tweak via Optool & CydiaSubstrate
+      - name: Inject StarTok Tweak into Mach-O Binary
         run: |
           echo "Extracting IPA..."
           unzip -q ./base.ipa -d ./extracted
@@ -94,12 +102,12 @@ jobs:
             cp "$SUBSTRATE" "${APP_DIR}/Frameworks/CydiaSubstrate.dylib"
             install_name_tool -id "@rpath/CydiaSubstrate.dylib" "${APP_DIR}/Frameworks/CydiaSubstrate.dylib" || true
             install_name_tool -change "/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate" "@rpath/CydiaSubstrate.dylib" "${APP_DIR}/Frameworks/StarTok.dylib" || true
-            optool install -c load -p "@rpath/CydiaSubstrate.dylib" -t "$APP_BINARY" || true
+            insert_dylib --inplace --all-yes "@rpath/CydiaSubstrate.dylib" "$APP_BINARY" || true
           fi
           
           # Fix dylib id and inject into Mach-O binary
           install_name_tool -id "@rpath/StarTok.dylib" "${APP_DIR}/Frameworks/StarTok.dylib" || true
-          optool install -c load -p "@rpath/StarTok.dylib" -t "$APP_BINARY"
+          insert_dylib --inplace --all-yes "@rpath/StarTok.dylib" "$APP_BINARY"
           
           # Codesign with ldid
           ldid -S "${APP_DIR}/Frameworks/StarTok.dylib" || true
